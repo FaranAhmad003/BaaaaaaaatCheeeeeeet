@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+      const socket = io("ws://localhost:4000", {
+        auth: {
+          token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWJfaGV4IjoiNCIsImVtYWlsIjoiZmFyYW5AZXhhbXBsZS5jb20iLCJpYXQiOjE3NTE5NzQwMTYsImV4cCI6MTc1MTk3NzYxNn0.msnHPvq9OIhdZZjsRSnCB5moMLM2seL1HJF02_zUqsY",
+        },
+      });
+
+      socket.on("connect", () => {
+        console.log("Connected!");
+        socket.emit("getOnlineUsers");
+      });
+
+      socket.on("onlineUsers", (data) => {
+        console.log("Online Users:", data);
+      });
+
+      socket.on("userOnline", (data) => {
+        console.log("User Online:", data);
+      });
+
+      socket.on("userOffline", (data) => {
+        console.log("User Offline:", data);
+      });
+    </script>
+  </body>
+</html>

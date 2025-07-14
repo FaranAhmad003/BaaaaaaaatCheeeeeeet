@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from 'next/navigation';
+import { getSocket, disconnectSocket } from '../utils/socket';
 
 export interface Message {
   sender: "me" | "other";
@@ -16,7 +18,36 @@ interface ChatWindowProps {
 const ChatWindow: React.FC<ChatWindowProps> = ({ chatName, online, messages: initialMessages, recipientEmail }) => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [message, setMessage] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
   const lastMsgRef = useRef<HTMLDivElement | null>(null);
+  const router = useRouter();
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Get singleton socket
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') || '' : '';
+  const socket = token ? getSocket(token) : null;
+
+  useEffect(() => {
+    if (!socket) return;
+    // Listen for typing events
+    const handleTyping = ({ email }: { email: string }) => {
+      if (email === recipientEmail) setIsTyping(true);
+    };
+    const handleStopTyping = ({ email }: { email: string }) => {
+      if (email === recipientEmail) setIsTyping(false);
+    };
+    const handleUserOffline = ({ email }: { email: string }) => {
+      if (email === recipientEmail) setIsTyping(false);
+    };
+    socket.on('typing', handleTyping);
+    socket.on('stopTyping', handleStopTyping);
+    socket.on('userOffline', handleUserOffline);
+    return () => {
+      socket.off('typing', handleTyping);
+      socket.off('stopTyping', handleStopTyping);
+      socket.off('userOffline', handleUserOffline);
+    };
+  }, [socket, recipientEmail]);
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -33,16 +64,16 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatName, online, messages: ini
         {
           sender: "me",
           text: message,
-          time: now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0'),
+          time: now.getHours().toString().padStart(2, "0") + ":" + now.getMinutes().toString().padStart(2, "0"),
         },
       ]);
-      const token = localStorage.getItem('accessToken');
+      const token = localStorage.getItem("accessToken");
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/send`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             recipientEmail,
@@ -55,14 +86,66 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatName, online, messages: ini
         // Optionally, handle error (e.g., show a toast)
       }
       setMessage("");
+      // Emit stopTyping when message is sent
+      if (socket) {
+        socket.emit('stopTyping', { recipientEmail });
+      }
     }
   };
 
+  // Typing event logic
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessage(e.target.value);
+    if (socket) {
+      socket.emit('typing', { recipientEmail });
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit('stopTyping', { recipientEmail });
+      }, 1200);
+    }
+  };
+
+  // Status logic: Typing... > Online > Offline
+  let status = 'Offline';
+  let statusColor = '#a1a1aa';
+  if (online) {
+    status = 'Online';
+    statusColor = '#22c55e';
+  }
+  if (online && isTyping) {
+    status = 'Typing...';
+    statusColor = '#f59e42';
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #ede9fe', background: '#ede9fe', borderTopLeftRadius: '1.5rem', borderTopRightRadius: '1.5rem' }}>
-        <div style={{ fontWeight: 700, fontSize: 20, color: '#7c3aed' }}>{chatName}</div>
-        <div style={{ fontSize: 13, color: online ? '#22c55e' : '#a1a1aa' }}>{online ? 'Online' : 'Offline'}</div>
+      <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #ede9fe', background: '#ede9fe', borderTopLeftRadius: '1.5rem', borderTopRightRadius: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 20, color: '#7c3aed' }}>{chatName}</div>
+          <div style={{ fontSize: 13, color: statusColor }}>{status}</div>
+        </div>
+        <button
+          onClick={() => {
+            disconnectSocket();
+            localStorage.removeItem('accessToken');
+            router.push('/login');
+          }}
+          style={{
+            background: '#fff',
+            color: '#7c3aed',
+            border: '1px solid #7c3aed',
+            borderRadius: 8,
+            padding: '0.4rem 1.1rem',
+            fontWeight: 600,
+            fontSize: 15,
+            marginLeft: 16,
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px 0 rgba(124,60,237,0.08)',
+            transition: 'background 0.2s, color 0.2s',
+          }}
+        >
+          Logout
+        </button>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', background: '#f3f4f6', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {messages.map((msg, idx) => {
@@ -99,7 +182,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatName, online, messages: ini
         <input
           type="text"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={handleInputChange}
           placeholder="Type a message..."
           style={{
             flex: 1,
