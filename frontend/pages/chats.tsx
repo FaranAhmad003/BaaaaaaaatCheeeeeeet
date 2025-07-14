@@ -1,163 +1,137 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Sidebar, { Chat } from '../components/Sidebar';
-import ChatWindow, { Message } from '../components/ChatWindow';
-import { io, Socket } from 'socket.io-client';
+import React, { useEffect, useContext } from 'react';
+import { observer } from 'mobx-react-lite';
+import { ChatStoreContext } from '../stores/ChatStoreContext';
+import Sidebar from '../components/Sidebar';
+import ChatWindow from '../components/ChatWindow';
+import { getSocket } from '../utils/socket';
 
-export default function ChatsPage() {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
-  const socketRef = useRef<Socket | null>(null);
+const ChatsPage: React.FC = observer(() => {
+  const chatStore = useContext(ChatStoreContext);
 
-  // Extract current user's email from JWT
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
+  const currentUserEmail = typeof window !== 'undefined' ? (() => {
     const token = localStorage.getItem('accessToken');
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        setCurrentUserEmail(payload.email);
+        return payload.email;
       } catch {
-        setCurrentUserEmail(null);
+        return null;
       }
     }
-  }, []);
+    return null;
+  })() : null;
 
-  // Fetch all messages (both sent and received) after user is known
+  // Fetch all messages for the active user and populate chat list
   useEffect(() => {
     if (!currentUserEmail) return;
 
-    const fetchAllMessages = async () => {
+    const fetchMessages = async () => {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/all`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/all`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await res.json();
+        const messages = data.messages || [];
 
-      const data = await res.json();
-      const allMessages = data.messages || [];
-      setMessages(allMessages);
+        const chatMap: { [chatId: string]: any } = {};
+        const sortedByTime = messages.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      const chatMap: { [chatId: string]: Chat } = {};
+        sortedByTime.forEach((msg: any) => {
+          const chat = msg.chat;
+          let other = chat.participants?.find((p: any) => p.email !== currentUserEmail);
+          if (!other && msg.sender.email !== currentUserEmail) {
+            other = msg.sender;
+          }
 
-      allMessages.forEach((msg: any) => {
-        const chat = msg.chat;
+          if (other && !chatMap[chat.id]) {
+            chatMap[chat.id] = {
+              id: chat.id,
+              name: other.email,
+              email: other.email,
+              lastMessage: msg.content,
+              time: msg.createdAt,
+              online: false,
+            };
+          }
+        });
 
-        // Try finding the other participant from participants
-        let other = chat.participants?.find((p: any) => p.email !== currentUserEmail);
-
-        // Fallback: if participants missing or incomplete, use sender
-        if (!other && msg.sender.email !== currentUserEmail) {
-          other = msg.sender;
+        chatStore.setChats(Object.values(chatMap));
+        if (!chatStore.activeChatId && Object.keys(chatMap).length > 0) {
+          chatStore.setActiveChat(Object.values(chatMap)[0].id);
         }
-
-        if (other && !chatMap[chat.id]) {
-          chatMap[chat.id] = {
-            id: chat.id,
-            name: other.email,
-            email: other.email,
-            lastMessage: msg.content,
-            time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            online: false, // will be updated by socket
-          };
-        }
-      });
-
-      const sortedChats = Object.values(chatMap).sort((a, b) => {
-        if (a.online === b.online) return 0;
-        return a.online ? -1 : 1;
-      });
-      setChats(sortedChats);
-      if (sortedChats.length > 0 && !selectedChatId) {
-        setSelectedChatId(sortedChats[0].id);
+      } catch (err) {
+        // Optionally handle error
+      } finally {
+        // chatStore.loading = false; // Optionally unset loading state if needed
       }
     };
 
-    fetchAllMessages();
-  }, [currentUserEmail]);
+    fetchMessages();
+  }, [currentUserEmail, chatStore]);
 
-  // Socket.io logic for online status
+  // Socket connections
   useEffect(() => {
     if (!currentUserEmail) return;
     const token = localStorage.getItem('accessToken');
     if (!token) return;
-
-    // Connect to socket server
-    const socket = io(process.env.NEXT_PUBLIC_API_URL?.replace(/^http/, 'ws') || '', {
-      auth: { token },
-      transports: ['websocket'],
-    });
-    socketRef.current = socket;
-
-    // On connect, always request the current online users list
+    const socket = getSocket(token);
     socket.on('connect', () => {
       socket.emit('getOnlineUsers');
     });
-
-    // On receiving the full online users list, update all chats
     socket.on('onlineUsers', (users: { email: string }[]) => {
-      setChats((prevChats) =>
-        prevChats.map((chat) => ({
-          ...chat,
-          online: users.some((u: { email: string }) => u.email.toLowerCase() === chat.email.toLowerCase()),
-        }))
-      );
+      // Set all users offline first
+      chatStore.chats.forEach(chat => chatStore.setOnlineStatus(chat.email, false));
+      // Set online for users in the list
+      users.forEach(u => chatStore.setOnlineStatus(u.email, true));
     });
-
-    // On receiving userOnline, update only that chat
     socket.on('userOnline', ({ email }) => {
-      setChats((prevChats) =>
-        prevChats.map((chat) =>
-          chat.email.toLowerCase() === email.toLowerCase() ? { ...chat, online: true } : chat
-        )
-      );
+      chatStore.setOnlineStatus(email, true);
     });
-
-    // On receiving userOffline, update only that chat
     socket.on('userOffline', ({ email }) => {
-      setChats((prevChats) =>
-        prevChats.map((chat) =>
-          chat.email.toLowerCase() === email.toLowerCase() ? { ...chat, online: false } : chat
-        )
-      );
+      chatStore.setOnlineStatus(email, false);
     });
-
-    // Clean up on unmount
+    socket.on('message', (msg: any) => {
+      const chatId = msg.chat.id;
+      const senderEmail = msg.sender.email;
+      const isMe = senderEmail === currentUserEmail;
+      const newMessage: import('../stores/chatStore').Message = {
+        sender: isMe ? 'me' : 'other',
+        text: msg.content,
+        time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      // Only update messages if this is the active chat
+      if (chatId === chatStore.activeChatId) {
+        chatStore.setMessages([
+          ...chatStore.messages,
+          newMessage,
+        ]);
+      }
+      chatStore.setLastMessage(chatId, msg.content, msg.createdAt);
+    });
     return () => {
-      socket.disconnect();
+      socket.off('connect');
+      socket.off('onlineUsers');
+      socket.off('userOnline');
+      socket.off('userOffline');
+      socket.off('message');
     };
-  }, [currentUserEmail]);
+  }, [currentUserEmail, chatStore]);
 
-  const selectedChat = chats.find((c) => c.id === selectedChatId);
-
-  const selectedMessages: Message[] = messages
-    .filter((msg: any) => msg.chat.id === selectedChatId)
-    .map((msg: any) => ({
-      sender: msg.sender.email === currentUserEmail ? 'me' : 'other',
-      text: msg.content,
-      time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }));
+  // Always keep selectedMessages in sync with MobX
+  const selectedChat = chatStore.chats.find((c) => c.id === chatStore.activeChatId);
+  const selectedMessages = chatStore.messages;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6', display: 'flex', alignItems: 'stretch' }}>
-      <Sidebar
-  chats={chats.sort((a, b) => (a.online === b.online ? 0 : a.online ? -1 : 1))}
-  selectedChatId={selectedChatId || ''}
-  onSelectChat={setSelectedChatId}
-/>
-
+    <div style={{ minHeight: '100vh', background: '#f3f4f6', display: 'flex' }}>
+      <Sidebar />
       <div style={{ flex: 1, height: '100vh' }}>
-        {selectedChat && (
-          <ChatWindow
-            chatName={selectedChat.name}
-            online={selectedChat.online}
-            messages={selectedMessages}
-            recipientEmail={selectedChat.email}
-          />
-        )}
+        {selectedChat && <ChatWindow />}
       </div>
     </div>
   );
-}
+});
+
+export default ChatsPage;

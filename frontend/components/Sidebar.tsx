@@ -1,128 +1,137 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
+import { observer } from "mobx-react-lite";
+import { ChatStoreContext } from "../stores/ChatStoreContext";
 
-export interface Chat {
-  id: string;
-  name: string;
-  email: string;
-  lastMessage: string;
-  time: string;
-  online: boolean;
-}
-
-interface SidebarProps {
-  chats: Chat[];
-  selectedChatId: string;
-  onSelectChat: (id: string) => void;
-}
-
-const Sidebar: React.FC<SidebarProps> = ({ chats, selectedChatId, onSelectChat }) => {
+const Sidebar: React.FC = observer(() => {
+  const chatStore = useContext(ChatStoreContext);
   const [showNewChat, setShowNewChat] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newMessage, setNewMessage] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [initialMessage, setInitialMessage] = useState("");
 
-  const handleAddChat = (e: React.FormEvent) => {
+  const currentUserEmail = typeof window !== 'undefined' ? (() => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.email;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  })() : null;
+
+  const handleAddChat = async (e: React.FormEvent) => {
     e.preventDefault();
-    // For demo, just close the modal. In a real app, you'd add the chat.
+    const token = localStorage.getItem("accessToken");
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chats/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ targetEmail: newEmail }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.chat) {
+        const chat = data.chat;
+        const other = chat.participants.find((p: any) => p.email !== currentUserEmail);
+        const newChat = {
+          id: chat.id,
+          name: other.email,
+          email: other.email,
+          lastMessage: initialMessage,
+          time: new Date().toISOString(),
+          online: false,
+        };
+
+        chatStore.setChats([newChat, ...chatStore.chats.filter(c => c.id !== chat.id)]);
+        chatStore.setActiveChat(chat.id);
+        chatStore.setMessages([
+          {
+            sender: 'me',
+            text: initialMessage,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }
+        ]);
+        chatStore.setLastMessage(chat.id, initialMessage, new Date().toISOString());
+
+        // Send the initial message
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            recipientEmail: other.email,
+            content: initialMessage,
+          }),
+        });
+      }
+    } catch (err) {
+      console.error('Chat creation failed:', err);
+    }
+
     setShowNewChat(false);
-    setNewName("");
-    setNewMessage("");
-    // Optionally, call a prop to add the chat to the list.
+    setNewEmail("");
+    setInitialMessage("");
   };
 
   return (
-    <div style={{ width: 280, background: '#fff', borderRight: '1px solid #e5e7eb', boxShadow: '2px 0 8px 0 rgba(31,38,135,0.04)', height: '100vh', overflowY: 'auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.5rem 1rem' }}>
-        <span style={{ fontWeight: 700, fontSize: 24, color: '#7c3aed', letterSpacing: 1 }}>Chats</span>
-        <button
-          onClick={() => setShowNewChat((v) => !v)}
-          style={{
-            background: '#ede9fe',
-            color: '#7c3aed',
-            border: 'none',
-            borderRadius: '50%',
-            width: 32,
-            height: 32,
-            fontSize: 22,
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 2px 8px 0 rgba(124,60,237,0.08)',
-            transition: 'background 0.2s',
-          }}
-          aria-label="New Chat"
-        >
-          +
-        </button>
+    <div style={{ width: 280, background: '#fff', borderRight: '1px solid #e5e7eb', height: '100vh', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 1rem' }}>
+        <span style={{ fontWeight: 700, fontSize: 24, color: '#7c3aed' }}>Chats</span>
+        <button onClick={() => setShowNewChat(true)} style={{ fontSize: 24, color: '#7c3aed', background: 'none', border: 'none' }}>+</button>
       </div>
+
       {showNewChat && (
-        <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 4px 16px 0 rgba(31,38,135,0.10)', margin: '0 1rem 1rem 1rem', padding: '1rem', zIndex: 10 }}>
-          <form onSubmit={handleAddChat}>
-            <div style={{ fontWeight: 600, color: '#7c3aed', marginBottom: 8 }}>Start New Chat</div>
-            <input
-              type="text"
-              placeholder="Name"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 10, fontSize: 15 }}
-              required
-            />
-            <textarea
-              placeholder="Message"
-              value={newMessage}
-              onChange={e => setNewMessage(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 10, fontSize: 15, minHeight: 60 }}
-              required
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setShowNewChat(false)}
-                style={{ background: '#f3f4f6', color: '#7c3aed', border: 'none', borderRadius: 8, padding: '0.5rem 1rem', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8, padding: '0.5rem 1rem', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Start
-              </button>
-            </div>
-          </form>
-        </div>
+        <form onSubmit={handleAddChat} style={{ padding: '1rem' }}>
+          <input
+            type="email"
+            placeholder="Recipient Email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            required
+            style={{ width: '100%', marginBottom: 10, padding: 10 }}
+          />
+          <textarea
+            placeholder="Initial Message"
+            value={initialMessage}
+            onChange={(e) => setInitialMessage(e.target.value)}
+            required
+            style={{ width: '100%', height: 60, marginBottom: 10, padding: 10 }}
+          />
+          <button type="submit" style={{ padding: 10, background: '#7c3aed', color: 'white', border: 'none', borderRadius: 5 }}>
+            Start Chat
+          </button>
+        </form>
       )}
-      {chats.map((chat) => (
-        <div
-          key={chat.id}
-          onClick={() => onSelectChat(chat.id)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '1rem',
-            background: chat.id === selectedChatId ? '#ede9fe' : '#fff',
-            cursor: 'pointer',
-            borderLeft: chat.id === selectedChatId ? '4px solid #7c3aed' : '4px solid transparent',
-            transition: 'background 0.2s, border 0.2s',
-            marginBottom: 2,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: chat.online ? '#a78bfa' : '#e5e7eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, marginRight: 12 }}>
-              {chat.name.split(' ').map((n) => n[0]).join('')}
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, color: '#22223b' }}>{chat.name}</div>
-              <div style={{ fontSize: 13, color: '#6b7280', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.lastMessage}</div>
-            </div>
+
+      {chatStore.chats
+        .slice()
+        .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+        .map(chat => (
+          <div
+            key={chat.id}
+            onClick={() => chatStore.setActiveChat(chat.id)}
+            style={{
+              padding: '1rem',
+              background: chat.id === chatStore.activeChatId ? '#ede9fe' : '#fff',
+              cursor: 'pointer',
+              borderBottom: '1px solid #f3f4f6',
+            }}
+          >
+            <div style={{ fontWeight: 600, color: '#22223b' }}>{chat.name}</div>
+            <div style={{ fontSize: 13, color: '#6b7280' }}>{chat.lastMessage}</div>
+            <div style={{ fontSize: 11, color: '#a1a1aa' }}>{new Date(chat.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
-          <div style={{ fontSize: 11, color: '#a1a1aa' }}>{chat.time}</div>
-        </div>
-      ))}
+        ))}
     </div>
   );
-};
+});
 
-export default Sidebar; 
+export default Sidebar;
