@@ -29,9 +29,6 @@ export class AuthService {
       step: 30, // ⏱ make explicit
     });
 
-    console.log(`🔐 Generated OTP: ${otp}`);
-    console.log(`🔑 Saving OTP Secret for ${email}: ${otpSecret.base32}`);
-
     await this.transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
@@ -54,12 +51,8 @@ export class AuthService {
     const user = await this.userRepo.findOne({ where: { email } });
 
     if (!user || !user.otpSecret) {
-      console.log(`❌ No user or secret found for email: ${email}`);
       return { verified: false };
     }
-
-    console.log(`🔍 Verifying OTP: ${otp} for email: ${email}`);
-    console.log(`🧾 Using OTP Secret: ${user.otpSecret}`);
 
     const isVerified = speakeasy.totp.verify({
       secret: user.otpSecret,
@@ -68,8 +61,6 @@ export class AuthService {
       step: 30,
       window: 2,
     });
-
-    console.log(`✅ OTP Verified: ${isVerified}`);
 
     if (isVerified) {
       user.isVerified = true;

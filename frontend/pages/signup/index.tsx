@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { observer } from 'mobx-react-lite';
+import { authStore } from '../../stores/authStore';
 
-export default function SignupPage() {
+const SignupPage = observer(() => {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -12,45 +14,21 @@ export default function SignupPage() {
   const [message, setMessage] = useState('');
 
   const handleRequestOtp = async () => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/request-otp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setStep('otp');
-    } else {
-      setMessage(data.message || 'Failed to send OTP');
-    }
+    await authStore.requestOtp(email);
+    if (!authStore.error) setStep('otp');
+    else setMessage(authStore.error);
   };
 
   const handleVerifyOtp = async () => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/verify-otp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, otp }),
-    });
-    const data = await res.json();
-    if (data.verified) {
-      setStep('password');
-    } else {
-      setMessage('Invalid OTP');
-    }
+    await authStore.verifyOtp(email, otp);
+    if (!authStore.error) setStep('password');
+    else setMessage(authStore.error || 'Invalid OTP');
   };
 
   const handleSignup = async () => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setMessage('Signup successful! You can now log in.');
-    } else {
-      setMessage(data.message || 'Signup failed');
-    }
+    await authStore.signup(email, password);
+    if (!authStore.error) setMessage('Signup successful! You can now log in.');
+    else setMessage(authStore.error);
   };
 
   return (
@@ -138,5 +116,7 @@ export default function SignupPage() {
       `}</style>
     </div>
   );
-}
+});
+
+export default SignupPage;
 

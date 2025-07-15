@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { observer } from "mobx-react-lite";
 import { ChatStoreContext } from "../stores/ChatStoreContext";
 
@@ -7,6 +7,10 @@ const Sidebar: React.FC = observer(() => {
   const [showNewChat, setShowNewChat] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [initialMessage, setInitialMessage] = useState("");
+
+  useEffect(() => {
+    chatStore.fetchChats();
+  }, [chatStore]);
 
   const currentUserEmail = typeof window !== 'undefined' ? (() => {
     const token = localStorage.getItem('accessToken');
@@ -48,16 +52,23 @@ const Sidebar: React.FC = observer(() => {
           online: false,
         };
 
-        chatStore.setChats([newChat, ...chatStore.chats.filter(c => c.id !== chat.id)]);
-        chatStore.setActiveChat(chat.id);
-        chatStore.setMessages([
-          {
-            sender: 'me',
-            text: initialMessage,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          }
-        ]);
-        chatStore.setLastMessage(chat.id, initialMessage, new Date().toISOString());
+       // Create a fresh array so MobX can track properly
+const updatedChats = [newChat, ...chatStore.chats.filter(c => c.id !== chat.id)];
+chatStore.setChats(updatedChats);
+
+// ✅ Set last message immediately AFTER setting chats
+chatStore.setLastMessage(chat.id, initialMessage, new Date().toISOString());
+
+chatStore.setActiveChat(chat.id);
+
+chatStore.setMessages([
+  {
+    sender: 'me' as const,
+    text: initialMessage,
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  }
+]);
+
 
         // Send the initial message
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/send`, {
@@ -111,25 +122,27 @@ const Sidebar: React.FC = observer(() => {
         </form>
       )}
 
-      {chatStore.chats
-        .slice()
-        .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-        .map(chat => (
-          <div
-            key={chat.id}
-            onClick={() => chatStore.setActiveChat(chat.id)}
-            style={{
-              padding: '1rem',
-              background: chat.id === chatStore.activeChatId ? '#ede9fe' : '#fff',
-              cursor: 'pointer',
-              borderBottom: '1px solid #f3f4f6',
-            }}
-          >
-            <div style={{ fontWeight: 600, color: '#22223b' }}>{chat.name}</div>
-            <div style={{ fontSize: 13, color: '#6b7280' }}>{chat.lastMessage}</div>
-            <div style={{ fontSize: 11, color: '#a1a1aa' }}>{new Date(chat.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-          </div>
-        ))}
+{[...chatStore.chats].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).map(chat => (
+  <div
+    key={chat.id}
+    onClick={() => chatStore.setActiveChat(chat.id)}
+    style={{
+      padding: '1rem',
+      background: chat.id === chatStore.activeChatId ? '#ede9fe' : '#fff',
+      cursor: 'pointer',
+      borderBottom: '1px solid #f3f4f6',
+    }}
+  >
+    <div style={{ fontWeight: 600, color: '#22223b' }}>{chat.name}</div>
+    <div style={{ fontSize: 13, color: '#6b7280' }}>
+      {chat.lastMessage || 'No messages yet'}
+    </div>
+    <div style={{ fontSize: 11, color: '#a1a1aa' }}>
+      {chat.time ? new Date(chat.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+    </div>
+  </div>
+))}
+
     </div>
   );
 });

@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useContext } from "react";
 import { useRouter } from 'next/navigation';
 import { getSocket, disconnectSocket } from '../utils/socket';
 import { ChatStoreContext } from '../stores/ChatStoreContext';
+import { observer } from "mobx-react-lite";
+
 
 const ChatWindow: React.FC = () => {
   const chatStore = useContext(ChatStoreContext);
@@ -26,58 +28,43 @@ const ChatWindow: React.FC = () => {
 
   const activeChat = chatStore.chats.find(c => c.id === chatStore.activeChatId);
   const messages = chatStore.messages;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
 
-  const socket = typeof window !== 'undefined' ? getSocket(localStorage.getItem('accessToken') || '') : null;
+  const socket = typeof window !== 'undefined' ? getSocket(token || '') : null;
 
+  // Typing indicators
   useEffect(() => {
     if (!socket || !activeChat) return;
+
     const handleTyping = ({ email }: { email: string }) => {
       if (email === activeChat.email) setIsTyping(true);
     };
     const handleStopTyping = ({ email }: { email: string }) => {
       if (email === activeChat.email) setIsTyping(false);
     };
+
     socket.on('typing', handleTyping);
     socket.on('stopTyping', handleStopTyping);
+
     return () => {
       socket.off('typing', handleTyping);
       socket.off('stopTyping', handleStopTyping);
     };
   }, [socket, activeChat]);
 
+  // Scroll to last message
   useEffect(() => {
     if (lastMsgRef.current) {
       lastMsgRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
-  const handleSend = async () => {
-    if (message.trim() && activeChat) {
-      const now = new Date();
-      const newMsg = {
-        sender: "me",
-        text: message,
-        time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      chatStore.setMessages([...chatStore.messages, newMsg]);
-      chatStore.setLastMessage(activeChat.id, message, now.toISOString());
-
-      const token = localStorage.getItem("accessToken");
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/send`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          recipientEmail: activeChat.email,
-          content: message,
-        }),
-      });
-      setMessage("");
-      if (socket) socket.emit('stopTyping', { recipientEmail: activeChat.email });
-    }
-  };
+const handleSend = async () => {
+  if (message.trim() && activeChat && currentUserEmail) {
+    await chatStore.sendMessage(activeChat.id, message.trim(), activeChat.email);
+    setMessage("");
+  }
+};
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessage(e.target.value);
@@ -97,6 +84,7 @@ const ChatWindow: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Header */}
       <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #ede9fe', background: '#ede9fe', borderTopLeftRadius: '1.5rem', borderTopRightRadius: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 20, color: '#7c3aed' }}>{activeChat.name}</div>
@@ -113,6 +101,8 @@ const ChatWindow: React.FC = () => {
           Logout
         </button>
       </div>
+
+      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', background: '#f3f4f6', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {messages.map((msg, idx) => (
           <div
@@ -134,6 +124,8 @@ const ChatWindow: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Input */}
       <div style={{ borderTop: '1px solid #ede9fe', background: '#fff', borderBottomLeftRadius: '1.5rem', borderBottomRightRadius: '1.5rem', display: 'flex', alignItems: 'center', padding: '1rem' }}>
         <input
           type="text"
@@ -174,4 +166,4 @@ const ChatWindow: React.FC = () => {
   );
 };
 
-export default ChatWindow;
+export default observer(ChatWindow);

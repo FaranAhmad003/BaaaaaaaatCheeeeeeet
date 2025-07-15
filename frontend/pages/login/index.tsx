@@ -1,28 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { observer } from 'mobx-react-lite';
+import { authStore } from '../../stores/authStore';
 
-export default function LoginPage() {
+const LoginPage = observer(() => {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
 
-  const handleLogin = async () => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-
-    if (res.ok) {
-      localStorage.setItem('accessToken', data.accessToken);
+  useEffect(() => {
+    if (authStore.token) {
       router.push('/chats');
-    } else {
-      setMessage(data.message || 'Login failed');
     }
+  }, [authStore.token, router]);
+
+  const handleLogin = async () => {
+    await authStore.login(email, password);
+    if (authStore.error) setMessage(authStore.error);
   };
 
   return (
@@ -91,5 +88,7 @@ export default function LoginPage() {
       `}</style>
     </div>
   );
-}
+});
+
+export default LoginPage;
 

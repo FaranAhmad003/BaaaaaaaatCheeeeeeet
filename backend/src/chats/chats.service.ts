@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Chat } from './entities/chat.entity';
 import { User } from '../users/entities/user.entity';
+import { Message } from '../messages/entities/message.entity';
 
 @Injectable()
 export class ChatsService {
@@ -47,4 +48,5 @@ export class ChatsService {
 
     return await this.chatRepo.save(chat);
   }
+
 }

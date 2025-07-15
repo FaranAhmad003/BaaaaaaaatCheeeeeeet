@@ -1,11 +1,13 @@
 import React, { useEffect, useContext } from 'react';
 import { observer } from 'mobx-react-lite';
+import { useRouter } from 'next/navigation';
 import { ChatStoreContext } from '../stores/ChatStoreContext';
 import Sidebar from '../components/Sidebar';
 import ChatWindow from '../components/ChatWindow';
 import { getSocket } from '../utils/socket';
 
 const ChatsPage: React.FC = observer(() => {
+  const router = useRouter();
   const chatStore = useContext(ChatStoreContext);
 
   const currentUserEmail = typeof window !== 'undefined' ? (() => {
@@ -14,14 +16,26 @@ const ChatsPage: React.FC = observer(() => {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         return payload.email;
-      } catch {
+      } catch (e) {
+        console.error("⚠️ Failed to decode token:", e);
         return null;
       }
     }
     return null;
   })() : null;
 
-  // Fetch all messages for the active user and populate chat list
+  // Redirect to login if no token
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        console.warn("⚠️ No token found, redirecting to /login");
+        router.push('/login');
+      }
+    }
+  }, [router]);
+
+  // Load messages and construct chat list
   useEffect(() => {
     if (!currentUserEmail) return;
 
@@ -33,11 +47,15 @@ const ChatsPage: React.FC = observer(() => {
             Authorization: `Bearer ${token}`,
           },
         });
+
         const data = await res.json();
         const messages = data.messages || [];
 
         const chatMap: { [chatId: string]: any } = {};
-        const sortedByTime = messages.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const sortedByTime = messages.sort(
+          (a: any, b: any) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
 
         sortedByTime.forEach((msg: any) => {
           const chat = msg.chat;
@@ -46,7 +64,7 @@ const ChatsPage: React.FC = observer(() => {
             other = msg.sender;
           }
 
-          if (other && !chatMap[chat.id]) {
+          if (other && chat.id && !chatMap[chat.id]) {
             chatMap[chat.id] = {
               id: chat.id,
               name: other.email,
@@ -58,77 +76,71 @@ const ChatsPage: React.FC = observer(() => {
           }
         });
 
-        chatStore.setChats(Object.values(chatMap));
-        if (!chatStore.activeChatId && Object.keys(chatMap).length > 0) {
-          chatStore.setActiveChat(Object.values(chatMap)[0].id);
-        }
+        const allChats = Object.values(chatMap);
+
+        chatStore.setChats(allChats);
+
+if (!chatStore.activeChatId && Object.keys(chatMap).length > 0) {
+  const firstChat = Object.values(chatMap)[0];
+  if (firstChat?.id) {
+    chatStore.setActiveChat(firstChat.id);
+  } else {
+    console.warn("⚠️ First chat is invalid or missing ID:", firstChat);
+  }
+} else {
+  console.warn("⚠️ No chats found or activeChatId already set.");
+}
+
       } catch (err) {
-        // Optionally handle error
-      } finally {
-        // chatStore.loading = false; // Optionally unset loading state if needed
+        console.error("❌ Error loading messages:", err);
       }
     };
 
     fetchMessages();
   }, [currentUserEmail, chatStore]);
 
-  // Socket connections
+  // Setup socket connections
   useEffect(() => {
     if (!currentUserEmail) return;
     const token = localStorage.getItem('accessToken');
     if (!token) return;
+
     const socket = getSocket(token);
+
     socket.on('connect', () => {
       socket.emit('getOnlineUsers');
     });
+
     socket.on('onlineUsers', (users: { email: string }[]) => {
-      // Set all users offline first
       chatStore.chats.forEach(chat => chatStore.setOnlineStatus(chat.email, false));
-      // Set online for users in the list
       users.forEach(u => chatStore.setOnlineStatus(u.email, true));
     });
+
     socket.on('userOnline', ({ email }) => {
       chatStore.setOnlineStatus(email, true);
     });
+
     socket.on('userOffline', ({ email }) => {
       chatStore.setOnlineStatus(email, false);
     });
-    socket.on('message', (msg: any) => {
-      const chatId = msg.chat.id;
-      const senderEmail = msg.sender.email;
-      const isMe = senderEmail === currentUserEmail;
-      const newMessage: import('../stores/chatStore').Message = {
-        sender: isMe ? 'me' : 'other',
-        text: msg.content,
-        time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      // Only update messages if this is the active chat
-      if (chatId === chatStore.activeChatId) {
-        chatStore.setMessages([
-          ...chatStore.messages,
-          newMessage,
-        ]);
-      }
-      chatStore.setLastMessage(chatId, msg.content, msg.createdAt);
-    });
+
+    chatStore.connectSocket(token, currentUserEmail);
+
     return () => {
       socket.off('connect');
       socket.off('onlineUsers');
       socket.off('userOnline');
       socket.off('userOffline');
-      socket.off('message');
     };
   }, [currentUserEmail, chatStore]);
 
-  // Always keep selectedMessages in sync with MobX
   const selectedChat = chatStore.chats.find((c) => c.id === chatStore.activeChatId);
-  const selectedMessages = chatStore.messages;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', display: 'flex' }}>
       <Sidebar />
       <div style={{ flex: 1, height: '100vh' }}>
-        {selectedChat && <ChatWindow />}
+        {selectedChat ? <ChatWindow /> : <div style={{ padding: 20 }}>No chat selected</div>}
       </div>
     </div>
   );

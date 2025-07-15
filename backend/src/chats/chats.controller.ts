@@ -4,6 +4,7 @@ import {
   Body,
   UseGuards,
   Request,
+  Get,
 } from '@nestjs/common';
 import { ChatsService } from './chats.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -30,4 +31,5 @@ export class ChatsController {
       },
     };
   }
+  
 }
