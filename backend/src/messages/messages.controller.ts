@@ -40,9 +40,11 @@ export class MessagesController {
   @UseGuards(JwtAuthGuard)
   @Get('all')
   async getAllChatMessages(@Req() req: Request) {
+
     const userId = req.user?.userId;
     const messages = await this.messagesService.getAllChatMessages(userId);
     return { messages };
+    
   }
 
   // ✅ ADD THIS ABOVE @Get(':chatId')

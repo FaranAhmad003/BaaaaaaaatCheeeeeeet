@@ -38,65 +38,9 @@ const ChatsPage: React.FC = observer(() => {
   // Load messages and construct chat list
   useEffect(() => {
     if (!currentUserEmail) return;
-
-    const fetchMessages = async () => {
-      const token = localStorage.getItem('accessToken');
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/all`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const data = await res.json();
-        const messages = data.messages || [];
-
-        const chatMap: { [chatId: string]: any } = {};
-        const sortedByTime = messages.sort(
-          (a: any, b: any) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-
-        sortedByTime.forEach((msg: any) => {
-          const chat = msg.chat;
-          let other = chat.participants?.find((p: any) => p.email !== currentUserEmail);
-          if (!other && msg.sender.email !== currentUserEmail) {
-            other = msg.sender;
-          }
-
-          if (other && chat.id && !chatMap[chat.id]) {
-            chatMap[chat.id] = {
-              id: chat.id,
-              name: other.email,
-              email: other.email,
-              lastMessage: msg.content,
-              time: msg.createdAt,
-              online: false,
-            };
-          }
-        });
-
-        const allChats = Object.values(chatMap);
-
-        chatStore.setChats(allChats);
-
-if (!chatStore.activeChatId && Object.keys(chatMap).length > 0) {
-  const firstChat = Object.values(chatMap)[0];
-  if (firstChat?.id) {
-    chatStore.setActiveChat(firstChat.id);
-  } else {
-    console.warn("⚠️ First chat is invalid or missing ID:", firstChat);
-  }
-} else {
-  console.warn("⚠️ No chats found or activeChatId already set.");
-}
-
-      } catch (err) {
-        console.error("❌ Error loading messages:", err);
-      }
-    };
-
-    fetchMessages();
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+    chatStore.fetchAllChats(token, currentUserEmail);
   }, [currentUserEmail, chatStore]);
 
   // Setup socket connections

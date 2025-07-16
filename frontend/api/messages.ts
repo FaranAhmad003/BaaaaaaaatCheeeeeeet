@@ -38,3 +38,13 @@ export async function sendMessage(chatId: string, content: string, recipientEmai
   if (!res.ok) throw new Error('Failed to send message');
   return res.json();
 }
+
+export async function fetchAllChatMessages(token: string) {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/all`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) throw new Error('Failed to fetch all chat messages');
+  return res.json();
+}

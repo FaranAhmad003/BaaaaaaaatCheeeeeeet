@@ -3,6 +3,7 @@ import { makeAutoObservable, runInAction } from "mobx";
 import { getSocket } from "../utils/socket";
 import { getMessages, sendMessage as sendMessageApi } from "../api/messages";
 import { getChatSummaries } from "../api/chats";
+import { fetchAllChatMessages } from "../api/messages";
 
 export interface Chat {
   id: string;
@@ -38,6 +39,14 @@ export class ChatStore {
   setChats(chats: Chat[]) {
     this.chats = chats;
   }
+
+getLastMessage(chatId: string): { lastMessage: string, time: string } | null {
+  const chat = this.chats.find(chat => chat.id === chatId);
+  if (chat) {
+    return { lastMessage: chat.lastMessage, time: chat.time };
+  }
+  return null;
+}
 
 setLastMessage(chatId: string, lastMessage: string, time: string) {
   const updatedChats = this.chats.map(chat =>
@@ -103,17 +112,24 @@ setLastMessage(chatId: string, lastMessage: string, time: string) {
     }
   }
 
+
+
   async fetchChats() {
     this.loading = true;
     this.error = null;
     try {
       //get data via api here ---- displayed in the inspect/network
       const data = await getChatSummaries();
+      console.log("ChatStore : ",data);
       runInAction(() => {
         this.chats = Array.isArray(data.chats) ? data.chats : data;
+        // Store the last message for each chat in the global variable
+        this.chats.forEach(chat => {
+          this.setLastMessage(chat.id, chat.lastMessage, chat.time);
+        });
         this.loading = false;
-        console.log(data);
       });
+      
     } catch (err: any) {
       runInAction(() => {
         this.error = err.message || "Failed to load chats";
@@ -127,8 +143,9 @@ setLastMessage(chatId: string, lastMessage: string, time: string) {
     this.error = null;
     try {
       // Send message via API
-      await sendMessageApi(chatId, content,recipientEmail);
-      // Optionally, refresh messages for the chat
+      await sendMessageApi(chatId, content, recipientEmail);
+      const now = new Date().toISOString();
+      this.setLastMessage(chatId, content, now);
       await this.loadMessages(chatId);
       // Optionally, emit via socket for real-time update
       const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
@@ -138,6 +155,8 @@ setLastMessage(chatId: string, lastMessage: string, time: string) {
         recipientEmail,
         content,
       });
+
+      this.fetchChats();
       runInAction(() => {
         this.loading = false;
       });
@@ -146,6 +165,47 @@ setLastMessage(chatId: string, lastMessage: string, time: string) {
         this.error = err.message || 'Failed to send message';
         this.loading = false;
       });
+    }
+  }
+
+  async fetchAllChats(token: string, currentUserEmail: string) {
+    this.loading = true;
+    this.error = null;
+    try {
+      const data = await fetchAllChatMessages(token);
+      const messages = data.messages || [];
+      const chatMap: { [chatId: string]: any } = {};
+      const sortedByTime = messages.sort(
+        (a: any, b: any) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      sortedByTime.forEach((msg: any) => {
+        const chat = msg.chat;
+        let other = chat.participants?.find((p: any) => p.email !== currentUserEmail);
+        if (!other && msg.sender.email !== currentUserEmail) {
+          other = msg.sender;
+        }
+        if (other && chat.id && !chatMap[chat.id]) {
+          chatMap[chat.id] = {
+            id: chat.id,
+            name: other.email,
+            email: other.email,
+            lastMessage: this.getLastMessage(chat.id)?.lastMessage || msg.content,
+            time: msg.createdAt,
+            online: false,
+          };
+        }
+      });
+      const allChats = Object.values(chatMap);
+      this.setChats(allChats);
+      
+      if (!this.activeChatId && allChats.length > 0) {
+        this.setActiveChat(allChats[0].id);
+      }
+      this.loading = false;
+    } catch (err: any) {
+      this.error = err.message || "Failed to load all chats";
+      this.loading = false;
     }
   }
 
@@ -173,7 +233,7 @@ const newMessage: Message = {
         this.messages.push(newMessage);
       }
 
-      this.setLastMessage(chatId, msg.content, msg.createdAt);
+      
     });
   }
 }

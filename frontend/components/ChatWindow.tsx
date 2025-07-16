@@ -62,10 +62,20 @@ const ChatWindow: React.FC = () => {
 const handleSend = async () => {
   if (message.trim() && activeChat && currentUserEmail) {
     await chatStore.sendMessage(activeChat.id, message.trim(), activeChat.email);
+    // After sending the message, update the chat's lastMessage and time
+    if (activeChat) {
+      const now = new Date().toISOString();
+      chatStore.setLastMessage(activeChat.id, message.trim(), now);
+    }
     setMessage("");
   }
 };
-
+/*setLastMessage(chatId: string, lastMessage: string, time: string) {
+  const updatedChats = this.chats.map(chat =>
+    chat.id === chatId
+      ? { ...chat, lastMessage, time }
+      : chat
+  );*/ 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessage(e.target.value);
     if (socket && activeChat) {

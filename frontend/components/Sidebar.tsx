@@ -135,7 +135,7 @@ chatStore.setMessages([
   >
     <div style={{ fontWeight: 600, color: '#22223b' }}>{chat.name}</div>
     <div style={{ fontSize: 13, color: '#6b7280' }}>
-      {chat.lastMessage || 'No messages yet'}
+      {chat.lastMessage};
     </div>
     <div style={{ fontSize: 11, color: '#a1a1aa' }}>
       {chat.time ? new Date(chat.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
