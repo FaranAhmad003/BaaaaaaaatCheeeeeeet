@@ -42,11 +42,9 @@ initSocket(token: string) {
   if (typeof window === "undefined") return;
 
   if (this.socket && this.socket.connected) {
-    console.warn("⚠️ Socket already connected, skipping re-init.");
     return;
   }
 
-  console.log("initSocket Called");
   this.socket = getSocket(token);
   this.setupSocketListeners();
 }
@@ -60,12 +58,10 @@ initSocket(token: string) {
     this.socket.offAny(); // Clears all existing listeners to avoid duplicates
 
     this.socket.on("connect", () => {
-      console.log("✅ Socket connected:", this.socket?.id);
       this.socket?.emit("getOnlineUsers");
     });
 
     this.socket.on("disconnect", () => {
-      console.warn("⚠️ Socket disconnected");
     });
 
     this.socket.on("connect_error", (err) => {
@@ -73,9 +69,6 @@ initSocket(token: string) {
     });
 
 this.socket.on("receive_message", (message: any) => {
-  console.log("📩 Received message:", message);
-
-  const currentUserEmail = this.getCurrentUserEmail();
 
   const newMessage: Message = {
     sender: message.sender === currentUserEmail ? "me" : "other",
@@ -239,7 +232,6 @@ this.socket.on("receive_message", (message: any) => {
 
     if (this.socket) {
       this.socket.emit("send_message", message);
-      console.log("Messgge sent from ChatStore Socket this.socket.emit: ", message);
     }
 
     runInAction(() => {
@@ -292,9 +284,10 @@ this.socket.on("receive_message", (message: any) => {
       const allChats = Object.values(chatMap);
       this.setChats(allChats);
 
-      if (!this.activeChatId && allChats.length > 0) {
-        this.setActiveChat(allChats[0].id);
-      }
+      // Do NOT auto-select a chat
+      // if (!this.activeChatId && allChats.length > 0) {
+      //   this.setActiveChat(allChats[0].id);
+      // }
 
       this.loading = false;
     } catch (err: any) {
