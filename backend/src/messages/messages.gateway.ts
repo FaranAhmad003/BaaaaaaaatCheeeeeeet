@@ -25,7 +25,7 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
   server: Server;
 
   private onlineUsers: Map<string, OnlineUser> = new Map();
-
+/*
   handleConnection(socket: Socket) {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
     if (!token) return socket.disconnect();
@@ -65,8 +65,28 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     }
   }
+  */
 
-  @SubscribeMessage('getOnlineUsers')
+  //now implementing the server here  
+  afterInit(server: Server) {
+    console.log('Socket Gateway initialized');
+  }
+
+  handleConnection(client: Socket) {
+    console.log(`Client connected: ${client.id}`);
+  }
+
+  handleDisconnect(client: Socket) {
+    console.log(`Client disconnected: ${client.id}`);
+  }
+
+  @SubscribeMessage('send_message')
+  handleMessage(client: Socket, payload: any): void {
+    this.server.emit('receive_message', payload);
+    //this.server.to(payload.recipientEmail).emit('receive_message', payload);
+  }
+
+/*  @SubscribeMessage('getOnlineUsers')
   handleGetOnlineUsers(@ConnectedSocket() socket: Socket) {
     socket.emit('onlineUsers', Array.from(this.onlineUsers.values()));
   }
@@ -120,5 +140,5 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       content: data.content,
       createdAt: new Date().toISOString(),
     });
-  }
+  }*/
 }

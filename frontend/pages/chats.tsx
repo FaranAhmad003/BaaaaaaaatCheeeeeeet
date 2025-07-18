@@ -1,4 +1,4 @@
-import React, { useEffect, useContext } from 'react';
+import React, { useEffect, useContext, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useRouter } from 'next/navigation';
 import { ChatStoreContext } from '../stores/ChatStoreContext';
@@ -9,33 +9,73 @@ import { getSocket } from '../utils/socket';
 const ChatsPage: React.FC = observer(() => {
   const router = useRouter();
   const chatStore = useContext(ChatStoreContext);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
-  const currentUserEmail = typeof window !== 'undefined' ? (() => {
+  // 🔐 Validate and extract user email + socket init
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const token = localStorage.getItem('accessToken');
-    if (token) {
+    if (!token) {
+      router.push('/login');
+    } else {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.email;
+        if (payload?.email) {
+          setCurrentUserEmail(payload.email);
+          chatStore.initSocket(token);
+        }
       } catch (e) {
-        console.error("⚠️ Failed to decode token:", e);
-        return null;
-      }
-    }
-    return null;
-  })() : null;
-
-  // Redirect to login if no token
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        console.warn("⚠️ No token found, redirecting to /login");
+        console.error("Failed to decode token:", e);
         router.push('/login');
       }
     }
-  }, [router]);
+  }, [router, chatStore]);
+  useEffect(() => {
+  const token = localStorage.getItem('accessToken');
+  if (!token || !currentUserEmail) return;
 
-  // Load messages and construct chat list
+  const socket = getSocket(token);
+
+  // 🧠 Prevent adding duplicate listeners
+  if ((socket as any)._presenceListenersSet) return;
+  (socket as any)._presenceListenersSet = true;
+
+  const updateOnlineStatus = () => {
+    socket.emit('getOnlineUsers');
+  };
+
+  const handleOnlineUsers = (users: { email: string }[]) => {
+    chatStore.chats.forEach(chat => chatStore.setOnlineStatus(chat.email, false));
+    users.forEach(user => chatStore.setOnlineStatus(user.email, true));
+  };
+
+  const handleUserOnline = ({ email }: { email: string }) => {
+    chatStore.setOnlineStatus(email, true);
+  };
+
+  const handleUserOffline = ({ email }: { email: string }) => {
+    chatStore.setOnlineStatus(email, false);
+  };
+
+  socket.on('connect', updateOnlineStatus);
+  socket.on('onlineUsers', handleOnlineUsers);
+  socket.on('userOnline', handleUserOnline);
+  socket.on('userOffline', handleUserOffline);
+
+  return () => {
+    socket.off('connect', updateOnlineStatus);
+    socket.off('onlineUsers', handleOnlineUsers);
+    socket.off('userOnline', handleUserOnline);
+    socket.off('userOffline', handleUserOffline);
+
+    // reset the flag on cleanup (optional)
+    (socket as any)._presenceListenersSet = false;
+  };
+}, [currentUserEmail, chatStore]);
+
+
+  // 📩 Load chats
   useEffect(() => {
     if (!currentUserEmail) return;
     const token = localStorage.getItem('accessToken');
@@ -43,48 +83,17 @@ const ChatsPage: React.FC = observer(() => {
     chatStore.fetchAllChats(token, currentUserEmail);
   }, [currentUserEmail, chatStore]);
 
-  // Setup socket connections
-  useEffect(() => {
-    if (!currentUserEmail) return;
-    const token = localStorage.getItem('accessToken');
-    if (!token) return;
-
-    const socket = getSocket(token);
-
-    socket.on('connect', () => {
-      socket.emit('getOnlineUsers');
-    });
-
-    socket.on('onlineUsers', (users: { email: string }[]) => {
-      chatStore.chats.forEach(chat => chatStore.setOnlineStatus(chat.email, false));
-      users.forEach(u => chatStore.setOnlineStatus(u.email, true));
-    });
-
-    socket.on('userOnline', ({ email }) => {
-      chatStore.setOnlineStatus(email, true);
-    });
-
-    socket.on('userOffline', ({ email }) => {
-      chatStore.setOnlineStatus(email, false);
-    });
-
-    chatStore.connectSocket(token, currentUserEmail);
-
-    return () => {
-      socket.off('connect');
-      socket.off('onlineUsers');
-      socket.off('userOnline');
-      socket.off('userOffline');
-    };
-  }, [currentUserEmail, chatStore]);
-
-  const selectedChat = chatStore.chats.find((c) => c.id === chatStore.activeChatId);
+  const selectedChat = chatStore.chats.find(c => c.id === chatStore.activeChatId);
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', display: 'flex' }}>
       <Sidebar />
       <div style={{ flex: 1, height: '100vh' }}>
-        {selectedChat ? <ChatWindow /> : <div style={{ padding: 20 }}>No chat selected</div>}
+        {selectedChat ? (
+          <ChatWindow />
+        ) : (
+          <div style={{ padding: 20 }}>No chat selected</div>
+        )}
       </div>
     </div>
   );
