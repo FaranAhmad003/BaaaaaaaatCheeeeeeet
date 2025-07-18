@@ -3,6 +3,9 @@ import {
   Post,
   Body,
   BadRequestException,
+  UseGuards,
+  Get,
+  Req,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RequestOtpDto } from './dto/request-otp.dto';
@@ -12,8 +15,9 @@ import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not } from 'typeorm';
 import { User } from '../users/entities/user.entity';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -70,5 +74,23 @@ export class AuthController {
     const accessToken = this.jwtService.sign(payload);
 
     return { accessToken };
+  }
+  @UseGuards(JwtAuthGuard)
+  @Get('users/others')
+  async getOtherUsers(@Req() req) {
+    const currentUserId = req.user.id;
+    const users = await this.userRepo.find({
+      where: { id: Not(currentUserId) },
+      select: ['id', 'email', 'isVerified', 'createdAt'],
+    });
+    return users;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('users/all')
+  async getAllUserEmails(@Req() req) {
+    const currentEmail = req.user.email;
+    const users = await this.userRepo.find({ select: ['email'] });
+    return users.filter(u => u.email !== currentEmail);
   }
 }

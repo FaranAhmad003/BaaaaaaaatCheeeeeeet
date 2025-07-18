@@ -88,41 +88,86 @@ const ChatWindow: React.FC = () => {
     }
   };
 
-  if (!activeChat) {
-    return (
+ if (!activeChat) {
+  return (
+    <div style={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100%',
+      background: '#f3f4f6',
+      borderRadius: '1.5rem',
+      minHeight: 400,
+      padding: '2rem'
+    }}>
+      {/* Center icon */}
       <div style={{
-        flex: 1,
+        background: '#ede9fe',
+        borderRadius: '9999px',
+        padding: '1.2rem',
+        marginBottom: '1.2rem',
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        background: '#f3f4f6',
-        borderRadius: '1.5rem',
-        minHeight: 400,
+        justifyContent: 'center'
       }}>
-        <div style={{
-          fontSize: 72,
-          color: '#a78bfa',
-          marginBottom: 24,
+        <svg width="48" height="48" fill="none" viewBox="0 0 24 24">
+          <path d="M7 8h10M7 12h6" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 0 1-4.39-1.01L3 21l1.01-3.61A8.96 8.96 0 0 1 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" stroke="#7c3aed" strokeWidth="1.5" strokeLinejoin="round" />
+        </svg>
+      </div>
+
+      {/* Main text */}
+      <div style={{
+        fontWeight: 700,
+        fontSize: 28,
+        color: '#6b7280',
+        marginBottom: 12,
+        textAlign: 'center'
+      }}>
+        Start a new chat
+      </div>
+
+      {/* Sub text */}
+      <div style={{
+        fontSize: 16,
+        color: '#9ca3af',
+        textAlign: 'center',
+        maxWidth: 320,
+        marginBottom: 24
+      }}>
+        Select someone from the sidebar or click the <span style={{ color: '#7c3aed', fontWeight: 600 }}>+</span> button to begin a conversation.
+      </div>
+
+      {/* (Optional) Add a new chat button */}
+      <button
+        style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          {/* Text message icon (SVG) */}
-          <svg width="72" height="72" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="24" height="24" rx="12" fill="#ede9fe"/>
-            <path d="M7 8h10M7 12h6" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 0 1-4.39-1.01L3 21l1.01-3.61A8.96 8.96 0 0 1 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z" stroke="#7c3aed" strokeWidth="1.5" strokeLinejoin="round"/>
-          </svg>
-        </div>
-        <div style={{ fontWeight: 700, fontSize: 28, color: '#7c3aed', marginBottom: 10 }}>Start a new chat</div>
-        <div style={{ fontSize: 16, color: '#6b7280', textAlign: 'center', maxWidth: 320 }}>
-          Select a chat from the sidebar or click the <span style={{ color: '#7c3aed', fontWeight: 600 }}>+</span> button to begin a new conversation.
-        </div>
-      </div>
-    );
-  }
+          gap: 8,
+          background: '#7c3aed',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 10,
+          fontWeight: 600,
+          fontSize: 16,
+          padding: '10px 20px',
+          boxShadow: '0 2px 6px rgba(124,58,237,0.15)',
+          cursor: 'pointer'
+        }}
+        onClick={() => alert('Implement New Chat Flow')}
+      >
+        <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" fill="#fff" />
+          <path d="M12 7v10M7 12h10" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        Start new chat
+      </button>
+    </div>
+  );
+}
+
 
   const status = isTyping ? "Typing..." : activeChat.online ? "Online" : "Offline";
   const statusColor = isTyping ? '#f59e42' : activeChat.online ? '#22c55e' : '#a1a1aa';

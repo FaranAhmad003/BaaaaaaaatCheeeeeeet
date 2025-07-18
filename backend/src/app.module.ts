@@ -9,6 +9,7 @@ import { Message } from './messages/entities/message.entity';
 import { MessagesModule } from './messages/messages.module';
 import { ChatGateWay } from './chats/chat.gateway';
 import { MessagesGateway } from './messages/messages.gateway';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -21,13 +22,14 @@ import { MessagesGateway } from './messages/messages.gateway';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       entities: [User, Chat, Message],
-      synchronize: true, // ⚠️ for dev only
+      synchronize: true,
     }),
     AuthModule,
     ChatsModule,
     MessagesModule,
     ChatGateWay,
     MessagesGateway,
+    UsersModule,
 
 
   ],

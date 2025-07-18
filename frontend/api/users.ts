@@ -33,4 +33,16 @@ export async function listUsers() {
   });
   if (!res.ok) throw new Error('Failed to list users');
   return res.json();
+}
+
+export async function fetchOtherUserEmails() {
+  const res = await fetch(`${API_URL}/auth/users/all`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+  });
+  if (!res.ok) throw new Error('Failed to fetch user emails');
+  return res.json();
 } 
