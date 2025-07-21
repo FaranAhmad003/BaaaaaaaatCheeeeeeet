@@ -16,9 +16,7 @@ const ChatsPage: React.FC = observer(() => {
     if (typeof window === 'undefined') return;
 
     const token = localStorage.getItem('accessToken');
-    if (!token) {
-      router.push('/login');
-    } else {
+    if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         if (payload?.email) {
@@ -27,9 +25,10 @@ const ChatsPage: React.FC = observer(() => {
         }
       } catch (e) {
         console.error("Failed to decode token:", e);
-        router.push('/login');
+        // No redirect
       }
     }
+    // No redirect if no token
   }, [router, chatStore]);
   useEffect(() => {
   const token = localStorage.getItem('accessToken');

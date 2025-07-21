@@ -1,5 +1,5 @@
 import { data } from "react-router-dom";
-
+import { jwtDecode } from 'jwt-decode';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 function getAuthHeaders(): Record<string, string> {
@@ -81,4 +81,19 @@ export async function startChat(targetEmail: string) {
   });
   if (!res.ok) throw new Error('Failed to start chat');
   return res.json();
+}
+
+export function isTokenExpired(): boolean {
+  if (typeof window === 'undefined') return true;
+  const token = localStorage.getItem('accessToken');
+  if (!token) return true;
+  try {
+    const decoded: any = jwtDecode(token);
+    if (decoded.exp && Date.now() >= decoded.exp * 1000) {
+      return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
 }

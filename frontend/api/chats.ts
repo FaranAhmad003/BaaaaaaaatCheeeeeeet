@@ -23,7 +23,7 @@ export async function getUserChats() {
   return res.json();
 }
 
-export async function startChat(targetEmail: string) {
+/*export async function startChat(targetEmail: string) {
   const res = await fetch(`${API_URL}/chats/start`, {
     method: 'POST',
     headers: {
@@ -34,7 +34,7 @@ export async function startChat(targetEmail: string) {
   });
   if (!res.ok) throw new Error('Failed to start chat');
   return res.json();
-}
+}*/
 
 export async function getChatSummaries() {
   const res = await fetch(`${API_URL}/messages/chat-summaries`, {

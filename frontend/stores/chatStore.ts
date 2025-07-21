@@ -7,6 +7,7 @@ import {
   fetchAllChatMessages,
 } from "../api/messages";
 import { getChatSummaries } from "../api/chats";
+import { isTokenExpired } from '../api/auth';
 import { Socket } from "socket.io-client";
 
 export interface Chat {
@@ -193,7 +194,16 @@ this.socket.on("receive_message", (message: any) => {
     }
   }
 
+  checkTokenAndRedirect() {
+    if (isTokenExpired()) {
+      window.location.href = '/login';
+      return true;
+    }
+    return false;
+  }
+
   async fetchChats() {
+    if (this.checkTokenAndRedirect()) return;
     this.loading = true;
     this.error = null;
     try {
@@ -214,6 +224,7 @@ this.socket.on("receive_message", (message: any) => {
   }
 
   async sendMessage(chatId: string, content: string, recipientEmail: string) {
+    if (this.checkTokenAndRedirect()) return;
     const message = {
       chatId,
       content,
@@ -247,7 +258,29 @@ this.socket.on("receive_message", (message: any) => {
     });
   }
 
+  async startNewChatWithUser(recipientEmail: string, message: string) {
+    if (this.checkTokenAndRedirect()) return null;
+    this.loading = true;
+    this.error = null;
+    try {
+      await this.sendMessage('', message, recipientEmail); // '' for chatId, backend should handle new chat creation
+      await this.fetchChats();
+      const newChat = this.chats.find(c => c.email === recipientEmail);
+      if (newChat) {
+        this.setActiveChat(newChat.id);
+        return newChat;
+      }
+      return null;
+    } catch (err: any) {
+      this.error = err.message || 'Failed to start chat';
+      return null;
+    } finally {
+      this.loading = false;
+    }
+  }
+
   async fetchAllChats(token: string, currentUserEmail: string) {
+    if (this.checkTokenAndRedirect()) return;
     this.loading = true;
     this.error = null;
     try {

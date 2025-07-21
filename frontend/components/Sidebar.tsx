@@ -1,12 +1,16 @@
 import React, { useState, useContext, useEffect, useRef } from "react";
 import { observer } from "mobx-react-lite";
 import { ChatStoreContext } from "../stores/ChatStoreContext";
+import NewGroupModal from './NewGroupModal';
+import NewChatModal from './NewChatModal';
 // Removed lucide-react icons
 
 const Sidebar: React.FC = observer(() => {
   const chatStore = useContext(ChatStoreContext);
   const [showNewChat, setShowNewChat] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [initialMessage, setInitialMessage] = useState("");
   const [search, setSearch] = useState("");
@@ -139,9 +143,12 @@ const Sidebar: React.FC = observer(() => {
             }}
           >
             {[
+              { label: 'New Chat', icon: (
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#7c3aed" strokeWidth="1.5"/><path d="M8 12h8M12 8v8" stroke="#7c3aed" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              ), onClick: () => { setShowMenu(false); setShowNewChatModal(true); } },
               { label: 'New Group', icon: (
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><circle cx="7" cy="10" r="3" stroke="#7c3aed" strokeWidth="1.5"/><circle cx="17" cy="10" r="3" stroke="#7c3aed" strokeWidth="1.5"/><path d="M7 13c-2.5 0-4.5 1.5-4.5 3v1.5A1.5 1.5 0 0 0 4 19h6a1.5 1.5 0 0 0 1.5-1.5V16c0-1.5-2-3-4.5-3Zm10 0c-2.5 0-4.5 1.5-4.5 3v1.5A1.5 1.5 0 0 0 14 19h6a1.5 1.5 0 0 0 1.5-1.5V16c0-1.5-2-3-4.5-3Z" stroke="#7c3aed" strokeWidth="1.5"/></svg>
-              ) },
+              ), onClick: () => { setShowMenu(false); setShowNewGroupModal(true); } },
               { label: 'Linked Devices', icon: (
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2" stroke="#7c3aed" strokeWidth="1.5"/><path d="M8 17v1a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-1" stroke="#7c3aed" strokeWidth="1.5"/></svg>
               ) },
@@ -170,7 +177,7 @@ const Sidebar: React.FC = observer(() => {
                   transition: 'background 0.16s',
                   outline: 'none',
                 }}
-                onClick={() => setShowMenu(false)}
+                onClick={() => { setShowMenu(false); item.onClick && item.onClick(); }}
                 onMouseDown={e => e.preventDefault()}
                 onMouseOver={e => (e.currentTarget.style.background = '#f3f4f6')}
                 onMouseOut={e => (e.currentTarget.style.background = 'none')}
@@ -255,6 +262,12 @@ const Sidebar: React.FC = observer(() => {
           </div>
         </div>
       ))}
+      <NewGroupModal open={showNewGroupModal} onClose={() => setShowNewGroupModal(false)} />
+      <NewChatModal
+        open={showNewChatModal}
+        onClose={() => setShowNewChatModal(false)}
+        existingChatEmails={chatStore.chats.map(c => c.email)}
+      />
     </div>
   );
 });

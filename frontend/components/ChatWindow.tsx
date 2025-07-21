@@ -26,7 +26,7 @@ const ChatWindow: React.FC = () => {
   })() : null;
 
   const activeChat = chatStore.chats.find(c => c.id === chatStore.activeChatId);
-  const messages = chatStore.messages;
+  const messages  = chatStore.messages;
   const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : '';
   const socket = typeof window !== 'undefined' ? getSocket(token || '') : null;
 
@@ -170,7 +170,17 @@ const ChatWindow: React.FC = () => {
 
 
   const status = isTyping ? "Typing..." : activeChat.online ? "Online" : "Offline";
-  const statusColor = isTyping ? '#f59e42' : activeChat.online ? '#22c55e' : '#a1a1aa';
+  const statusColor = isTyping ? '#f59e42' : activeChat.online ? '#22c55e' : '#6b7280';
+  const statusBg = isTyping
+    ? 'rgba(245,158,66,0.12)'
+    : activeChat.online
+      ? 'rgba(34,197,94,0.13)'
+      : '#f3f4f6';
+  const statusBorder = isTyping
+    ? '1.5px solid #f59e42'
+    : activeChat.online
+      ? '1.5px solid #22c55e'
+      : '1.5px solid #e5e7eb';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -187,7 +197,25 @@ const ChatWindow: React.FC = () => {
       }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 20, color: '#7c3aed' }}>{activeChat.name}</div>
-          <div style={{ fontSize: 13, color: statusColor }}>{status}</div>
+          <div
+            style={{
+              display: 'inline-block',
+              fontSize: 13,
+              color: statusColor,
+              background: statusBg,
+              border: statusBorder,
+              borderRadius: 999,
+              padding: '3px 14px',
+              fontWeight: 600,
+              marginTop: 4,
+              letterSpacing: 0.2,
+              minWidth: 60,
+              textAlign: 'center',
+              transition: 'background 0.2s, color 0.2s, border 0.2s',
+            }}
+          >
+            {status}
+          </div>
         </div>
         <button
           onClick={() => {
